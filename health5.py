@@ -17,14 +17,14 @@ DB_FILE = "health_analytics_v5.csv"
 
 st.set_page_config(page_title="Pro Health Analyzer v5", layout="wide")
 
-# CSS: 전문적인 대시보드 스타일 및 조언 박스 스타일
+# CSS: 전문적인 대시보드 및 조언 박스 스타일
 st.markdown("""
     <style>
     .main { background-color: #f8f9fa; }
     .stMetric { background-color: #ffffff; padding: 15px; border-radius: 12px; 
                 box-shadow: 0 2px 8px rgba(0,0,0,0.05); border: 1px solid #e9ecef; }
-    .advice-box { background-color: #e8f5e9; padding: 20px; border-radius: 10px; border-left: 5px solid #4caf50; margin-bottom: 20px; }
-    .tip-header { font-size: 1.2rem; font-weight: bold; margin-top: 15px; display: flex; align-items: center; }
+    .advice-box { background-color: #f1fcf4; padding: 20px; border-radius: 10px; border-left: 5px solid #4caf50; margin-bottom: 20px; }
+    .tip-header { font-size: 1.1rem; font-weight: bold; margin-bottom: 10px; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -94,102 +94,82 @@ if not df.empty:
     
     if selected_user:
         user_df = df[df[COL_NAME] == selected_user].sort_values(COL_DATE)
+        latest = user_df.iloc[-1]
         
-        if not user_df.empty:
-            latest = user_df.iloc[-1]
-            _, _, _, _, _, min_w, max_w = get_analysis(latest[COL_WEIGHT], u_h, u_age, u_gen, u_a)
+        # 최신 정보 기준 분석 재산출
+        bmi, bmr, bfp, bfp_cat, kcal, min_w, max_w = get_analysis(latest[COL_WEIGHT], u_h, u_age, u_gen, u_a)
 
-           # [요약 지표 출력]
-m1, m2, m3, m4 = st.columns(4)
+        # 1. 요약 지표 및 표준 범위 표시
+        m1, m2, m3, m4 = st.columns(4)
+        with m1:
+            st.metric("현재 체중", f"{latest[COL_WEIGHT]} kg")
+            st.caption(f"📍 표준: {min_w} ~ {max_w} kg")
+        with m2:
+            st.metric("BMI 지수", f"{latest[COL_BMI]}")
+            st.caption("📍 표준: 18.5 ~ 23.0")
+        with m3:
+            st.metric("기초대사량", f"{latest[COL_BMR]:,} kcal")
+            st_bmr = "1,500~1,800" if u_gen == "남성" else "1,200~1,500"
+            st.caption(f"📍 평균: 약 {st_bmr} kcal")
+        with m4:
+            st.metric("체지방률", f"{latest[COL_BFP]} %")
+            st_bfp = "15~25%" if u_gen == "남성" else "20~32%"
+            st.caption(f"📍 표준: {st_bfp}")
 
-# 1. 체중 (분석 함수에서 계산된 min_w, max_w 활용)
-with m1:
-    st.metric("현재 체중", f"{latest[COL_WEIGHT]} kg")
-    st.caption(f"📍 표준: {min_w} ~ {max_w} kg")
+        st.divider()
 
-# 2. BMI (표준 기준: 18.5 ~ 23.0)
-with m2:
-    st.metric("BMI 지수", f"{latest[COL_BMI]}")
-    st.caption("📍 표준: 18.5 ~ 23.0")
+        # 2. 맞춤 건강 조언 (이미지 내용 반영)
+        st.subheader("💡 맞춤 건강 조언")
+        st.markdown(f"""
+            <div class="advice-box">
+                <p style="color:#2e7d32; font-weight:bold;">건강한 체중 유지 조언 ✅</p>
+                <ul>
+                    <li><b>영양:</b> 균형 잡힌 식단을 유지하세요 (채소, 단백질, 통곡물)</li>
+                    <li><b>운동:</b> 주 150분 이상의 유산소 운동 + 주 2회 근력 운동</li>
+                    <li><b>생활습관:</b> 충분한 수면(7~8시간)과 스트레스 관리</li>
+                    <li><b>정기검진:</b> 연 1회 건강검진으로 건강 상태 확인</li>
+                </ul>
+            </div>
+        """, unsafe_allow_html=True)
 
-# 3. 기초대사량 (일반적인 성인 남녀 평균치 예시 제공)
-with m3:
-    st.metric("기초대사량", f"{latest[COL_BMR]:,} kcal")
-    # 성별에 따른 평균 권장 기초대사량 가이드 (예시)
-    std_bmr = "1,500~1,800" if u_gen == "남성" else "1,200~1,500"
-    st.caption(f"📍 평균: 약 {std_bmr} kcal")
-
-# 4. 체지방률 (분석 함수 내 비만 기준 활용)
-with m4:
-    st.metric("체지방률", f"{latest[COL_BFP]} %")
-    std_bfp = "15 ~ 25%" if u_gen == "남성" else "20 ~ 32%"
-    st.caption(f"📍 표준: {std_bfp}")
-
-            # [이미지 내용 반영: 맞춤 건강 조언 및 팁 섹션]
-            st.divider()
-            st.subheader("💡 맞춤 건강 조언")
-            
-            # 1. 맞춤 건강 조언 박스
-            st.markdown(f"""
-                <div class="advice-box">
-                    <h4 style="margin-top:0;">건강한 체중 유지 조언 ✅</h4>
-                    <ul>
-                        <li><b>영양:</b> 균형 잡힌 식단을 유지하세요 (채소, 단백질, 통곡물)</li>
-                        <li><b>운동:</b> 주 150분 이상의 유산소 운동 + 주 2회 근력 운동</li>
-                        <li><b>생활습관:</b> 충분한 수면(7~8시간)과 스트레스 관리</li>
-                        <li><b>정기검진:</b> 연 1회 건강검진으로 건강 상태 확인</li>
-                    </ul>
-                </div>
+        # 3. 실천 가능한 건강 팁
+        st.subheader("🥗 실천 가능한 건강 팁")
+        col_diet, col_exercise = st.columns(2)
+        with col_diet:
+            st.markdown("""
+                <div class="tip-header">식습관 개선 🍽️</div>
+                <ul style="font-size:0.95rem; line-height:1.7;">
+                    <li>아침 식사를 거르지 마세요</li>
+                    <li>식사 시 천천히 씹어 먹으세요 (20분 이상)</li>
+                    <li>물을 충분히 마시세요 (하루 2L 이상)</li>
+                    <li>야식과 간식을 줄이세요</li>
+                    <li>식사 일기를 작성해보세요</li>
+                </ul>
+            """, unsafe_allow_html=True)
+        with col_exercise:
+            st.markdown("""
+                <div class="tip-header">운동 습관 🏃</div>
+                <ul style="font-size:0.95rem; line-height:1.7;">
+                    <li>엘리베이터 대신 계단 이용하기</li>
+                    <li>하루 10,000보 걷기 목표</li>
+                    <li>좋아하는 운동 찾기 (지속 가능성 중요)</li>
+                    <li>운동 친구 만들기 (동기부여)</li>
+                    <li>스트레칭으로 유연성 향상</li>
+                </ul>
             """, unsafe_allow_html=True)
 
-            # 2. 실천 가능한 건강 팁
-            st.subheader("🥗 실천 가능한 건강 팁")
-            col_diet, col_exercise = st.columns(2)
-            
-            with col_diet:
-                st.markdown("""
-                    <div class="tip-header">식습관 개선 🍽️</div>
-                    <ul style="line-height:1.8;">
-                        <li>아침 식사를 거르지 마세요</li>
-                        <li>식사 시 천천히 씹어 먹으세요 (20분 이상)</li>
-                        <li>물을 충분히 마시세요 (하루 2L 이상)</li>
-                        <li>야식과 간식을 줄이세요</li>
-                        <li>식사 일기를 작성해보세요</li>
-                    </ul>
-                """, unsafe_allow_html=True)
+        st.divider()
 
-            with col_exercise:
-                st.markdown("""
-                    <div class="tip-header">운동 습관 🏃</div>
-                    <ul style="line-height:1.8;">
-                        <li>엘리베이터 대신 계단 이용하기</li>
-                        <li>하루 10,000보 걷기 목표</li>
-                        <li>좋아하는 운동 찾기 (지속 가능성 중요)</li>
-                        <li>운동 친구 만들기 (동기부여)</li>
-                        <li>스트레칭으로 유연성 향상</li>
-                    </ul>
-                """, unsafe_allow_html=True)
-            
-            st.divider()
-
-            # [상세 분석 탭]
-            tab1, tab2 = st.tabs(["📈 지표 추이 분석", "📋 상세 기록 로그"])
-            
-            with tab1:
-                fig_bmi = px.line(user_df, x=COL_DATE, y=COL_BMI, markers=True, title=f"[{selected_user}] BMI 추이")
-                fig_bmi.add_hrect(y0=18.5, y1=23.0, fillcolor="green", opacity=0.1, line_width=0)
-                st.plotly_chart(fig_bmi, use_container_width=True)
-
-                fig_weight = px.line(user_df, x=COL_DATE, y=COL_WEIGHT, markers=True, title=f"[{selected_user}] 체중 변화")
-                fig_weight.add_hline(y=min_w, line_dash="dash", line_color="gray")
-                fig_weight.add_hline(y=max_w, line_dash="dash", line_color="gray")
-                st.plotly_chart(fig_weight, use_container_width=True)
-
-            with tab2:
-                st.dataframe(user_df.sort_values(COL_DATE, ascending=False), use_container_width=True, hide_index=True)
-                csv = user_df.to_csv(index=False).encode('utf-8-sig')
-                st.download_button("💾 데이터 CSV 저장", data=csv, file_name=f"health_{selected_user}.csv", mime="text/csv")
+        # 4. 분석 차트 및 로그
+        tab1, tab2 = st.tabs(["📈 지표 추이 분석", "📋 상세 기록 로그"])
+        with tab1:
+            fig_bmi = px.line(user_df, x=COL_DATE, y=COL_BMI, markers=True, title="BMI 추이")
+            st.plotly_chart(fig_bmi, use_container_width=True)
+            fig_weight = px.line(user_df, x=COL_DATE, y=COL_WEIGHT, markers=True, title="체중 변화")
+            st.plotly_chart(fig_weight, use_container_width=True)
+        with tab2:
+            st.dataframe(user_df.sort_values(COL_DATE, ascending=False), use_container_width=True, hide_index=True)
     else:
-        st.info("💡 위에서 사용자를 선택하면 건강 지표와 맞춤 조언이 나타납니다.")
+        st.info("💡 사용자를 선택하면 상세 건강 분석과 표준 범위를 확인할 수 있습니다.")
 else:
-    st.info("기록된 데이터가 없습니다. 왼쪽 사이드바에서 정보를 입력해 주세요.")
+    st.info("기록된 데이터가 없습니다. 사이드바에서 정보를 입력해 주세요.")
