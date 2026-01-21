@@ -99,12 +99,31 @@ if not df.empty:
             latest = user_df.iloc[-1]
             _, _, _, _, _, min_w, max_w = get_analysis(latest[COL_WEIGHT], u_h, u_age, u_gen, u_a)
 
-            # [요약 지표 출력]
-            m1, m2, m3, m4 = st.columns(4)
-            m1.metric("현재 체중", f"{latest[COL_WEIGHT]} kg")
-            m2.metric("BMI", f"{latest[COL_BMI]}")
-            m3.metric("기초대사량", f"{latest[COL_BMR]:,} kcal")
-            m4.metric("체지방률", f"{latest[COL_BFP]} %")
+           # [요약 지표 출력]
+m1, m2, m3, m4 = st.columns(4)
+
+# 1. 체중 (분석 함수에서 계산된 min_w, max_w 활용)
+with m1:
+    st.metric("현재 체중", f"{latest[COL_WEIGHT]} kg")
+    st.caption(f"📍 표준: {min_w} ~ {max_w} kg")
+
+# 2. BMI (표준 기준: 18.5 ~ 23.0)
+with m2:
+    st.metric("BMI 지수", f"{latest[COL_BMI]}")
+    st.caption("📍 표준: 18.5 ~ 23.0")
+
+# 3. 기초대사량 (일반적인 성인 남녀 평균치 예시 제공)
+with m3:
+    st.metric("기초대사량", f"{latest[COL_BMR]:,} kcal")
+    # 성별에 따른 평균 권장 기초대사량 가이드 (예시)
+    std_bmr = "1,500~1,800" if u_gen == "남성" else "1,200~1,500"
+    st.caption(f"📍 평균: 약 {std_bmr} kcal")
+
+# 4. 체지방률 (분석 함수 내 비만 기준 활용)
+with m4:
+    st.metric("체지방률", f"{latest[COL_BFP]} %")
+    std_bfp = "15 ~ 25%" if u_gen == "남성" else "20 ~ 32%"
+    st.caption(f"📍 표준: {std_bfp}")
 
             # [이미지 내용 반영: 맞춤 건강 조언 및 팁 섹션]
             st.divider()
