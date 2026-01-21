@@ -78,7 +78,7 @@ with st.sidebar:
                 st.rerun()
 
 # 4. 메인 화면
-st.title("🛡️ Smart Health Tracker Pro")
+st.title("🛡️ Mong's 건강 지킴이")
 
 if not df.empty:
     user_list = sorted(df[COL_NAME].unique().tolist())
