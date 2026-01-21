@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 import datetime
 import plotly.express as px
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 import os
 
 # 1. 상수 및 초기 설정
@@ -17,7 +19,7 @@ DB_FILE = "health_analytics_v5.csv"
 
 st.set_page_config(page_title="Pro Health Analyzer v5", layout="wide")
 
-# CSS: 전문적인 대시보드 및 조언 박스 스타일
+# CSS 스타일 설정
 st.markdown("""
     <style>
     .main { background-color: #f8f9fa; }
@@ -58,10 +60,9 @@ def get_analysis(weight, height, age, gender, activity):
     
     return bmi, int(bmr), bfp, bfp_cat, kcal, min_w, max_w
 
-# --- 데이터 준비 ---
 df = load_data()
 
-# --- 사이드바: 입력 인터페이스 ---
+# 4. 사이드바 입력창
 with st.sidebar:
     st.header("👤 정보 입력")
     with st.form("input_form"):
@@ -75,31 +76,25 @@ with st.sidebar:
         submit = st.form_submit_button("기록 저장")
 
 if submit and u_name.strip():
-    if len(u_name.strip()) < 2:
-        st.sidebar.error("이름을 2자 이상 정확히 입력해주세요.")
-    else:
-        bmi, bmr, bfp, bfp_cat, kcal, _, _ = get_analysis(u_w, u_h, u_age, u_gen, u_a)
-        new_row = {COL_DATE: m_date, COL_NAME: u_name, COL_WEIGHT: u_w, COL_BMI: bmi, 
-                   COL_BMR: bmr, COL_BFP: bfp, COL_BFP_CAT: bfp_cat, COL_CALORIE: kcal}
-        df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
-        df.to_csv(DB_FILE, index=False)
-        st.rerun()
+    bmi, bmr, bfp, bfp_cat, kcal, _, _ = get_analysis(u_w, u_h, u_age, u_gen, u_a)
+    new_row = {COL_DATE: m_date, COL_NAME: u_name, COL_WEIGHT: u_w, COL_BMI: bmi, 
+               COL_BMR: bmr, COL_BFP: bfp, COL_BFP_CAT: bfp_cat, COL_CALORIE: kcal}
+    df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+    df.to_csv(DB_FILE, index=False)
+    st.rerun()
 
-# --- 메인 대시보드 ---
 st.title("🛡️ Smart Health Tracker Pro")
 
 if not df.empty:
     user_list = sorted(df[COL_NAME].unique().tolist())
-    selected_user = st.selectbox("🔍 사용자 선택", user_list, index=None, placeholder="건강 정보를 확인할 성명을 선택하세요")
+    selected_user = st.selectbox("🔍 사용자 선택", user_list, index=None, placeholder="성명을 선택하세요")
     
     if selected_user:
         user_df = df[df[COL_NAME] == selected_user].sort_values(COL_DATE)
         latest = user_df.iloc[-1]
-        
-        # 최신 정보 기준 분석 재산출
         bmi, bmr, bfp, bfp_cat, kcal, min_w, max_w = get_analysis(latest[COL_WEIGHT], u_h, u_age, u_gen, u_a)
 
-        # 1. 요약 지표 및 표준 범위 표시
+        # 요약 지표 (표준 수치 포함)
         m1, m2, m3, m4 = st.columns(4)
         with m1:
             st.metric("현재 체중", f"{latest[COL_WEIGHT]} kg")
@@ -118,58 +113,60 @@ if not df.empty:
 
         st.divider()
 
-        # 2. 맞춤 건강 조언 (이미지 내용 반영)
+        # [통합 그래프 섹션]
+        st.subheader(f"📈 {selected_user}님의 건강 지표 통합 추이")
+        
+        # 보조 y축을 사용한 통합 그래프 생성
+        fig = make_subplots(specs=[[{"secondary_y": True}]])
+
+        # 체중 데이터 추가 (왼쪽 y축)
+        fig.add_trace(
+            go.Scatter(x=user_df[COL_DATE], y=user_df[COL_WEIGHT], name="체중 (kg)", 
+                       mode='lines+markers', line=dict(color='blue', width=3)),
+            secondary_y=False,
+        )
+
+        # BMI 데이터 추가 (오른쪽 y축)
+        fig.add_trace(
+            go.Scatter(x=user_df[COL_DATE], y=user_df[COL_BMI], name="BMI 지수", 
+                       mode='lines+markers', line=dict(color='orange', width=3, dash='dot')),
+            secondary_y=True,
+        )
+
+        # 그래프 레이아웃 설정
+        fig.update_layout(
+            title_text="체중 및 BMI 변화 추이",
+            hovermode="x unified",
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+        )
+
+        # 축 제목 설정
+        fig.update_yaxes(title_text="<b>체중</b> (kg)", secondary_y=False, color="blue")
+        fig.update_yaxes(title_text="<b>BMI</b> 지수", secondary_y=True, color="orange")
+
+        st.plotly_chart(fig, use_container_width=True)
+
+        st.divider()
+
+        # 맞춤 조언 및 팁 (기존 이미지 내용)
         st.subheader("💡 맞춤 건강 조언")
-        st.markdown(f"""
+        st.markdown("""
             <div class="advice-box">
                 <p style="color:#2e7d32; font-weight:bold;">건강한 체중 유지 조언 ✅</p>
                 <ul>
                     <li><b>영양:</b> 균형 잡힌 식단을 유지하세요 (채소, 단백질, 통곡물)</li>
                     <li><b>운동:</b> 주 150분 이상의 유산소 운동 + 주 2회 근력 운동</li>
                     <li><b>생활습관:</b> 충분한 수면(7~8시간)과 스트레스 관리</li>
-                    <li><b>정기검진:</b> 연 1회 건강검진으로 건강 상태 확인</li>
                 </ul>
             </div>
         """, unsafe_allow_html=True)
 
-        # 3. 실천 가능한 건강 팁
-        st.subheader("🥗 실천 가능한 건강 팁")
-        col_diet, col_exercise = st.columns(2)
-        with col_diet:
-            st.markdown("""
-                <div class="tip-header">식습관 개선 🍽️</div>
-                <ul style="font-size:0.95rem; line-height:1.7;">
-                    <li>아침 식사를 거르지 마세요</li>
-                    <li>식사 시 천천히 씹어 먹으세요 (20분 이상)</li>
-                    <li>물을 충분히 마시세요 (하루 2L 이상)</li>
-                    <li>야식과 간식을 줄이세요</li>
-                    <li>식사 일기를 작성해보세요</li>
-                </ul>
-            """, unsafe_allow_html=True)
-        with col_exercise:
-            st.markdown("""
-                <div class="tip-header">운동 습관 🏃</div>
-                <ul style="font-size:0.95rem; line-height:1.7;">
-                    <li>엘리베이터 대신 계단 이용하기</li>
-                    <li>하루 10,000보 걷기 목표</li>
-                    <li>좋아하는 운동 찾기 (지속 가능성 중요)</li>
-                    <li>운동 친구 만들기 (동기부여)</li>
-                    <li>스트레칭으로 유연성 향상</li>
-                </ul>
-            """, unsafe_allow_html=True)
-
-        st.divider()
-
-        # 4. 분석 차트 및 로그
-        tab1, tab2 = st.tabs(["📈 지표 추이 분석", "📋 상세 기록 로그"])
-        with tab1:
-            fig_bmi = px.line(user_df, x=COL_DATE, y=COL_BMI, markers=True, title="BMI 추이")
-            st.plotly_chart(fig_bmi, use_container_width=True)
-            fig_weight = px.line(user_df, x=COL_DATE, y=COL_WEIGHT, markers=True, title="체중 변화")
-            st.plotly_chart(fig_weight, use_container_width=True)
-        with tab2:
+        # 상세 로그 탭
+        with st.expander("📋 상세 기록 로그 확인"):
             st.dataframe(user_df.sort_values(COL_DATE, ascending=False), use_container_width=True, hide_index=True)
+            csv = user_df.to_csv(index=False).encode('utf-8-sig')
+            st.download_button("💾 데이터 CSV 저장", data=csv, file_name=f"health_{selected_user}.csv", mime="text/csv")
     else:
-        st.info("💡 사용자를 선택하면 상세 건강 분석과 표준 범위를 확인할 수 있습니다.")
+        st.info("💡 사용자를 선택하면 통합 분석 그래프를 볼 수 있습니다.")
 else:
     st.info("기록된 데이터가 없습니다. 사이드바에서 정보를 입력해 주세요.")
